@@ -30,6 +30,8 @@ public class nnhw1 extends Application {
 	public ArrayList<float[]> testArray = new ArrayList<float[]>();
 	public ArrayList<Color> colorArray = new ArrayList<Color>();
 
+	public float[] weight;// for only 2 dimemtion
+
 	public int sortedNewDesire = 0;
 	public int classAmount;
 	public int dataRatio = 200;
@@ -51,21 +53,21 @@ public class nnhw1 extends Application {
 		BorderPane nnhw1Pane = new BorderPane();
 
 		parameter = new Parameter();
-		canvas = new Canvas(layoutX,layoutY);
+		canvas = new Canvas(layoutX, layoutY);
 
 		nnhw1Pane.setRight(canvas);
 		nnhw1Pane.setLeft(parameter);
 
-		parameter.chooseFile.setOnMouseClicked(event ->{
+		parameter.chooseFile.setOnMouseClicked(event -> {
 			inputArray = new ArrayList<float[]>();
 			sortedArray = new ArrayList<float[]>();
 			trainArray = new ArrayList<float[]>();
 			testArray = new ArrayList<float[]>();
-			
+
 			// maybe can pack to a function call repaint
-			canvas.getChildren().remove(0,canvas.getChildren().size());
+			canvas.getChildren().remove(0, canvas.getChildren().size());
 			canvas.drawCoordinateLine();
-			
+
 			try {
 				inputFileChoose(null);
 			} catch (Exception e1) {
@@ -73,24 +75,31 @@ public class nnhw1 extends Application {
 				System.exit(0);
 				e1.printStackTrace();
 			}
-			
+
 			normalizeData(inputArray);
 			sortInputArray(inputArray);
 			classAmount = sortedNewDesire + 1;
-//			System.out.println(classAmount);
+
 			colorType();
 			drawDataPoints();
 
 			Collections.shuffle(sortedArray);
 			separateData(sortedArray);
 
+			weight = new float[trainArray.get(0).length - 1];
+
 		});
-		
-		parameter.doAlgo.setOnMouseClicked(event ->{
+
+		parameter.doAlgo.setOnMouseClicked(event -> {
+
 			getInitialParameter();
-			
+
+			getInitialWeight();
+
+			doAlgo();
+
 		});
-		
+
 		Scene primaryScene = new Scene(nnhw1Pane);
 		primaryStage.setScene(primaryScene);
 		primaryStage.setResizable(false);
@@ -98,6 +107,21 @@ public class nnhw1 extends Application {
 
 	}
 
+	public void getInitialWeight() {
+
+		Random rand = new Random();
+		for (int i = 0; i < weight.length; i++) {
+			if (Math.random() > 0.5) {
+				weight[i] = rand.nextFloat() + 0f;
+			} else {
+				weight[i] = rand.nextFloat() - 1f;
+			}
+		}
+	}
+
+	public void doAlgo() {
+		
+	}
 
 	public void separateData(ArrayList<float[]> tempArray) {
 		int totalamount = tempArray.size();
@@ -122,11 +146,10 @@ public class nnhw1 extends Application {
 		/*
 		 * fist 3 class is r b g , if there's more class random generate color
 		 */
-		
+
 		colorArray.add(Color.RED);
 		colorArray.add(Color.BLUE);
 		colorArray.add(Color.GREEN);
-
 
 		if (classAmount > 3) {
 			float colorR = 100;
@@ -155,9 +178,9 @@ public class nnhw1 extends Application {
 			}
 		}
 	}
-	
+
 	public void drawDataPoints() {
-		
+
 		for (int i = 0; i < classAmount; i++) {
 			for (int j = 0; j < sortedArray.size(); j++) {
 				if (sortedArray.get(j)[sortedArray.get(j).length - 1] == i) {
@@ -172,11 +195,10 @@ public class nnhw1 extends Application {
 		}
 	}
 
-	
 	private void normalizeData(ArrayList<float[]> array) {
 		/*
 		 * idea: find the biggest number(no matter positive or negative ,set it
-		 * 		 as denominator
+		 * as denominator
 		 */
 		float maxX = Float.MIN_VALUE;
 		float maxY = Float.MIN_VALUE;
@@ -212,13 +234,14 @@ public class nnhw1 extends Application {
 
 		int iRestFlag = 0;
 		sortedNewDesire = 0;
-//		System.out.println("--------- Start sort ---------");
+		// System.out.println("--------- Start sort ---------");
 
 		whileloop: while (true) {
 
 			// set the first one's desire as standard
 			int standardDesire = (int) inputArray.get(0)[inputArray.get(0).length - 1];
-//			System.out.println("Now the standartDesire is  : " + standardDesire);
+			// System.out.println("Now the standartDesire is : " +
+			// standardDesire);
 
 			for (int i = 0; i < inputArray.size(); i++) {
 				if (iRestFlag == 1) {
@@ -238,32 +261,33 @@ public class nnhw1 extends Application {
 				}
 			}
 			if (inputArray.size() == 0) {
-//				System.out.println("--------- Sort done! ---------");
-//				System.out.println("");
+				// System.out.println("--------- Sort done! ---------");
+				// System.out.println("");
 				break whileloop;
 			} else {
 				sortedNewDesire++;// count desire
 			}
 		}
-//		System.out.println("The max sorted desire : " + sortedNewDesire);
+		// System.out.println("The max sorted desire : " + sortedNewDesire);
 	}
-	
+
 	public void inputFileChoose(String[] args) throws IOException {
 		/*
 		 * show a file stage for choose file
 		 */
-		
+
 		Stage fileStage = new Stage();
 		FileChooser fileChooser = new FileChooser();
 		fileChooser.setTitle("Open Resource File");
-		fileChooser.setInitialDirectory(new File("D:\\NCU 1041\\NN\\dataset1"));
+		// fileChooser.setInitialDirectory(new File("D:\\NCU
+		// 1041\\NN\\dataset1"));
 
 		File file = fileChooser.showOpenDialog(fileStage);
-//		System.out.println(file);
+		// System.out.println(file);
 
 		FileReader fr = new FileReader(file);
 		BufferedReader br = new BufferedReader(fr);// 在br.ready反查輸入串流的狀況是否有資料
-		
+
 		parameter.chooseFile.setText(file.getName());
 
 		String txt;
@@ -290,7 +314,7 @@ public class nnhw1 extends Application {
 		}
 		fr.close();// 關閉檔案
 	}
-	
+
 	public void printArrayData(ArrayList<float[]> showArray) {
 
 		for (int i = 0; i < showArray.size(); i++) {
@@ -301,7 +325,6 @@ public class nnhw1 extends Application {
 		}
 		System.out.println("");
 	}
-
 
 	public void getInitialParameter() {
 		this.setStudyRate(this.parameter.getStudyRate());
