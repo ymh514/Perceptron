@@ -31,5 +31,8 @@ public class Canvas extends Pane {
 		yLine.setEndY(300);
 		this.getChildren().addAll(xLine, yLine);
 	}
-
+	public void repaint(){
+		this.getChildren().remove(0, this.getChildren().size());
+		drawCoordinateLine();
+	}
 }

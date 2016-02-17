@@ -8,6 +8,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
+
+import com.sun.xml.internal.bind.v2.runtime.unmarshaller.XsiNilLoader.Array;
+
 //import nnhw1.Parameter;
 //import nnhw1.Canvas;
 import javafx.application.Application;
@@ -15,6 +18,7 @@ import javafx.scene.Scene;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -25,22 +29,24 @@ public class nnhw1 extends Application {
 	public Parameter parameter;
 
 	public ArrayList<float[]> inputArray = new ArrayList<float[]>();
-	public ArrayList<float[]> sortedArray = new ArrayList<float[]>();
 	public ArrayList<float[]> trainArray = new ArrayList<float[]>();
 	public ArrayList<float[]> testArray = new ArrayList<float[]>();
-	public ArrayList<Color> colorArray = new ArrayList<Color>();
 
 	public float[] weight;// for only 2 dimemtion
-
-	public int sortedNewDesire = 0;
-	public int classAmount;
+	
 	public int dataRatio = 200;
-	public float layoutX = 600;
-	public float layoutY = 600;
+	
+	private int sortedNewDesire = 0;
+	private float layoutX = 600;
+	private float layoutY = 600;
+	private float eastxbound = layoutX/2;
+	private float westxbound = (layoutX/2)*-1;
+
 
 	private float studyRate;
 	private float threshold;
 	private int looptimes;
+	private float x0 = -1;
 
 	public static void main(String[] args) {
 		launch(args);
@@ -60,14 +66,12 @@ public class nnhw1 extends Application {
 
 		parameter.chooseFile.setOnMouseClicked(event -> {
 			inputArray = new ArrayList<float[]>();
-			sortedArray = new ArrayList<float[]>();
 			trainArray = new ArrayList<float[]>();
 			testArray = new ArrayList<float[]>();
 
 			// maybe can pack to a function call repaint
-			canvas.getChildren().remove(0, canvas.getChildren().size());
-			canvas.drawCoordinateLine();
-
+			canvas.repaint();
+			
 			try {
 				inputFileChoose(null);
 			} catch (Exception e1) {
@@ -77,16 +81,13 @@ public class nnhw1 extends Application {
 			}
 
 			normalizeData(inputArray);
-			sortInputArray(inputArray);
-			classAmount = sortedNewDesire + 1;
+			desireNormalize(inputArray);
 
-			colorType();
-			drawDataPoints();
+			Collections.shuffle(inputArray);
+			separateData(inputArray);
+			
+			drawDataPoints(trainArray);
 
-			Collections.shuffle(sortedArray);
-			separateData(sortedArray);
-
-			weight = new float[trainArray.get(0).length - 1];
 
 		});
 
@@ -96,7 +97,7 @@ public class nnhw1 extends Application {
 
 			getInitialWeight();
 
-			doAlgo();
+			doAlgo(trainArray);
 
 		});
 
@@ -107,7 +108,20 @@ public class nnhw1 extends Application {
 
 	}
 
+	public void desireNormalize(ArrayList<float[]> array){
+		int reference = (int) array.get(0)[array.get(0).length - 1];
+		for (int i = 0; i < array.size(); i++) {
+			if (array.get(i)[array.get(i).length - 1] == reference) {
+				array.get(i)[array.get(i).length - 1] = 1;
+			} else {
+				array.get(i)[array.get(i).length - 1] = -1;
+			}
+		} // 假裝是對的有時候要改 -1 1 記註記住
+	}
+	
 	public void getInitialWeight() {
+		
+		weight = new float[trainArray.get(0).length - 1];
 
 		Random rand = new Random();
 		for (int i = 0; i < weight.length; i++) {
@@ -119,8 +133,91 @@ public class nnhw1 extends Application {
 		}
 	}
 
-	public void doAlgo() {
+	public void doAlgo(ArrayList<float[]> array) {
+		int correctFlag = 0;
+		int correctCount = 0;
+		int dataAmount = trainArray.size();
+		int xn=0;
 		
+		while(looptimes != 0){
+			float sum = 0f;
+			for(int i=0;i<array.get(xn).length-1;i++){
+				sum += weight[i]*array.get(xn)[i];
+			}
+			sum += x0*threshold;
+			
+			sum = Math.signum(sum);
+			
+			if (sum != trainArray.get(xn)[trainArray.get(xn).length - 1] && sum > 0) {
+				for (int w = 0; w < (trainArray.get(xn).length - 1); w++) {// 要用的只有前兩個
+																			// 最後一個是desire
+					weight[w] -= studyRate * trainArray.get(xn)[w];
+				}
+				threshold -= studyRate * x0;
+				correctCount = 0;
+				
+			} else if (sum != trainArray.get(xn)[trainArray.get(xn).length - 1] && sum < 0) {
+				for (int w = 0; w < (trainArray.get(0).length - 1); w++) {// 要用的只有前兩個
+																			// 最後一個是desire
+					weight[w] += studyRate * trainArray.get(xn)[w];
+				}
+				threshold += studyRate * x0;
+				correctCount = 0;
+				
+			} else {
+				correctCount++;
+			}
+			
+			if (correctCount == dataAmount - 1) {
+				correctFlag = 1;
+				break;
+			} // 當趨近於收斂時給一個correctflag = 1 讓後面break之後的印可以印正確的資訊
+
+			if (xn == dataAmount - 1) {
+				xn = 0;
+			} else {
+				xn++;
+			} // xn 歸零重頭開始算
+			looptimes--;// looptimes countdown
+			
+		}
+		
+		flagdecide(correctFlag);// call function to decide
+
+		canvas.repaint();
+		drawDataPoints(trainArray);
+
+		float line1EndY = getY(weight[0], weight[1], threshold, eastxbound);
+		float line2EndY = getY(weight[0], weight[1], threshold, westxbound);
+		
+		
+		Line classifyLine = new Line();
+		classifyLine.setStroke(Color.CHARTREUSE);
+		classifyLine.setStrokeWidth(2);
+		classifyLine.setStartX(layoutX);
+		classifyLine.setStartY(eastxbound+(-line1EndY*dataRatio));
+		classifyLine.setEndX(0);
+		classifyLine.setEndY(eastxbound+(-line2EndY*dataRatio));
+		canvas.getChildren().add(classifyLine);
+
+	}
+	
+	public void flagdecide(int correctFlag) {
+		if (correctFlag == 1) {
+			System.out.println("-----------------------");
+			System.out.println("Find a good solution");
+			System.out.println("-----------------------");
+		} else {
+			System.out.println("-----------------------");
+			System.out.println("Sorry, out of looptimes");
+			System.out.println("-----------------------");
+		}
+	}
+
+	public float getY(float w0, float w1, float threshold, float x) {
+		float y;
+		y = (threshold / w1) - (w0 / w1) * (x / dataRatio);
+		return y;
 	}
 
 	public void separateData(ArrayList<float[]> tempArray) {
@@ -142,55 +239,26 @@ public class nnhw1 extends Application {
 		System.out.println("test amount : " + testArray.size());
 	}
 
-	public void colorType() {
-		/*
-		 * fist 3 class is r b g , if there's more class random generate color
-		 */
 
-		colorArray.add(Color.RED);
-		colorArray.add(Color.BLUE);
-		colorArray.add(Color.GREEN);
+	public void drawDataPoints(ArrayList<float[]> array) {
 
-		if (classAmount > 3) {
-			float colorR = 100;
-			float colorG = 100;
-			float colorB = 100;
-
-			for (int i = 3; i < classAmount; i++) {
-
-				colorR += 10;
-				if (colorR > 255) {
-					colorR -= 255;
-				}
-
-				colorG += 30;
-				if (colorG > 255) {
-					colorG -= 255;
-				}
-
-				colorB += 40;
-				if (colorB > 255) {
-					colorB -= 255;
-				}
-
-				Color colorType = new Color(colorR, colorG, colorB, 1.0f);
-				colorArray.add(colorType);
+		for (int j = 0; j < array.size(); j++) {
+			if (array.get(j)[array.get(j).length - 1] == -1) {
+				Circle circle = new Circle();
+				circle.setCenterX(array.get(j)[0] * dataRatio + (layoutX / 2));
+				circle.setCenterY((-array.get(j)[1]) * dataRatio + (layoutY / 2));
+				circle.setRadius(2);
+				circle.setFill(Color.RED);
+				canvas.getChildren().add(circle);
 			}
-		}
-	}
+			else{
+				Circle circle = new Circle();
+				circle.setCenterX(array.get(j)[0] * dataRatio + (layoutX / 2));
+				circle.setCenterY((-array.get(j)[1]) * dataRatio + (layoutY / 2));
+				circle.setRadius(2);
+				circle.setFill(Color.BLUE);
+				canvas.getChildren().add(circle);
 
-	public void drawDataPoints() {
-
-		for (int i = 0; i < classAmount; i++) {
-			for (int j = 0; j < sortedArray.size(); j++) {
-				if (sortedArray.get(j)[sortedArray.get(j).length - 1] == i) {
-					Circle circle = new Circle();
-					circle.setCenterX(sortedArray.get(j)[0] * dataRatio + (layoutX / 2));
-					circle.setCenterY((-sortedArray.get(j)[1]) * dataRatio + (layoutY / 2));
-					circle.setRadius(2);
-					circle.setFill(colorArray.get(i));
-					canvas.getChildren().add(circle);
-				}
 			}
 		}
 	}
@@ -217,60 +285,6 @@ public class nnhw1 extends Application {
 		}
 	}
 
-	public void sortInputArray(ArrayList<float[]> inputArray) {
-		/*
-		 * 1. set loop times = inputArray's dataamount 2. in while loop we have
-		 * to dynamic change loop times cause we had remove some data in the
-		 * array to reduce loop times 3. set a variable-standardDesire is mean
-		 * the first data's desire , then use it to check one by one ,if found
-		 * someone is as same as the standardDesire, put this data to
-		 * sortedArray, so on ,we can get a sorted array which's desire is from
-		 * 1 to number of class 4. everytime move a item to sortedArray , raise
-		 * iRestFlag and set i to 0, then it will run loop from beginning 5.
-		 * when inputarray left only 1 item must set as -1, or the last data's
-		 * desire will be set one more number
-		 * 
-		 */
-
-		int iRestFlag = 0;
-		sortedNewDesire = 0;
-		// System.out.println("--------- Start sort ---------");
-
-		whileloop: while (true) {
-
-			// set the first one's desire as standard
-			int standardDesire = (int) inputArray.get(0)[inputArray.get(0).length - 1];
-			// System.out.println("Now the standartDesire is : " +
-			// standardDesire);
-
-			for (int i = 0; i < inputArray.size(); i++) {
-				if (iRestFlag == 1) {
-					i = 0;
-				}
-				if ((int) inputArray.get(i)[inputArray.get(i).length - 1] == standardDesire) {
-					inputArray.get(i)[inputArray.get(i).length - 1] = sortedNewDesire;
-					sortedArray.add(inputArray.get(i));
-					inputArray.remove(i);
-					iRestFlag = 1;
-				} else {
-					iRestFlag = 0;
-				}
-				if (inputArray.size() == 1) {// the last data need set i=-1 to
-												// prevent after forloop's i++
-					i = -1;
-				}
-			}
-			if (inputArray.size() == 0) {
-				// System.out.println("--------- Sort done! ---------");
-				// System.out.println("");
-				break whileloop;
-			} else {
-				sortedNewDesire++;// count desire
-			}
-		}
-		// System.out.println("The max sorted desire : " + sortedNewDesire);
-	}
-
 	public void inputFileChoose(String[] args) throws IOException {
 		/*
 		 * show a file stage for choose file
@@ -279,8 +293,7 @@ public class nnhw1 extends Application {
 		Stage fileStage = new Stage();
 		FileChooser fileChooser = new FileChooser();
 		fileChooser.setTitle("Open Resource File");
-		// fileChooser.setInitialDirectory(new File("D:\\NCU
-		// 1041\\NN\\dataset1"));
+		fileChooser.setInitialDirectory(new File("D:\\NCU 1041\\NN\\dataset1\\"));
 
 		File file = fileChooser.showOpenDialog(fileStage);
 		// System.out.println(file);
