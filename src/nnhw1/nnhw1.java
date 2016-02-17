@@ -293,7 +293,7 @@ public class nnhw1 extends Application {
 		Stage fileStage = new Stage();
 		FileChooser fileChooser = new FileChooser();
 		fileChooser.setTitle("Open Resource File");
-		fileChooser.setInitialDirectory(new File("D:\\NCU 1041\\NN\\dataset1\\"));
+		fileChooser.setInitialDirectory(new File("src/dataset"));
 
 		File file = fileChooser.showOpenDialog(fileStage);
 		// System.out.println(file);
